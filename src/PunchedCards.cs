@@ -15,7 +15,7 @@ namespace PunchedCards
             var trainingData = DataHelper.ReadTrainingData(BitVectorFactory).ToList();
             var testData = DataHelper.ReadTestData(BitVectorFactory).ToList();
 
-            var punchedCardBitLengths = new uint[] { 6272 };
+            var punchedCardBitLengths = new uint[] { 8, 16, 32, 64, 128, 256 };
 
             foreach (var punchedCardBitLength in punchedCardBitLengths)
             {
