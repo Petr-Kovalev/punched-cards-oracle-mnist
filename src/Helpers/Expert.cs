@@ -32,37 +32,39 @@ namespace PunchedCards.Helpers
             return new Expert(trainingData);
         }
 
-        public double CalculateLoss(IBitVector bitVector, IBitVector label)
+        public IReadOnlyDictionary<IBitVector, double> CalculateMatchingScores(IBitVector bitVector)
         {
-            return CalculateLossPerLabel(bitVector, label);
-        }
-
-        public IReadOnlyDictionary<IBitVector, double> CalculateLosses(IBitVector bitVector)
-        {
-            var lossesPerLabel = CalculateLossesPerLabel(bitVector);
-            return Enumerable.Range(0, _labels.Count).ToDictionary(index => _labels[index], index => lossesPerLabel[index]);
-        }
-
-        private double[] CalculateLossesPerLabel(IBitVector bitVector)
-        {
-            var lossesPerLabel = _labels.Select(currentLabel => CalculateLossPerLabel(bitVector, currentLabel)).ToArray();
-            //Softmax(lossesPerLabel);
-            return lossesPerLabel;
-        }
-
-        private double CalculateLossPerLabel(IBitVector bitVector, IBitVector label)
-        {
-            var maxSpanningTreeWeightLoss = 0;
-            foreach (var edge in _maxSpanningTreesEdges[label].SelectMany(edge => edge))
+            var bitActivityBoolArray = new bool[bitVector.Count];
+            for (uint bitIndex = 0; bitIndex < bitActivityBoolArray.Length; bitIndex++)
             {
-                var edgeIndex = GetEdgeIndexByVertexValues(bitVector.IsActive(edge.Item1), bitVector.IsActive(edge.Item2));
-                if (edgeIndex != edge.Item3)
-                {
-                    maxSpanningTreeWeightLoss += edge.Item4;
-                }
+                bitActivityBoolArray[bitIndex] = bitVector.IsActive(bitIndex);
             }
 
-            return (double)maxSpanningTreeWeightLoss / _maxSpanningTreesWeightSums[label];
+            var matchingScores = new double[_labels.Count];
+
+            for (var labelIndex = 0; labelIndex < _labels.Count; labelIndex++)
+            {
+                var label = _labels[labelIndex];
+                var maxSpanningTreeWeight = 0;
+                foreach (var edge in _maxSpanningTreesEdges[label].SelectMany(edge => edge))
+                {
+                    var edgeIndex = GetEdgeIndexByVertexValues(
+                        bitActivityBoolArray[edge.Item1],
+                        bitActivityBoolArray[edge.Item2]);
+                    if (edgeIndex == edge.Item3)
+                    {
+                        maxSpanningTreeWeight += edge.Item4;
+                    }
+                }
+
+                matchingScores[labelIndex] = (double)maxSpanningTreeWeight / _maxSpanningTreesWeightSums[label];
+            }
+
+            SoftMax(matchingScores);
+
+            return Enumerable.Range(0, _labels.Count).ToDictionary(
+                labelIndex => _labels[labelIndex],
+                labelIndex => matchingScores[labelIndex]);
         }
 
         private static IEnumerable<IReadOnlyCollection<ValueTuple<uint, uint, byte, int>>> GetMaxSpanningTreesEdges(IReadOnlyCollection<IBitVector> bitVectors, int maxSpanningTreesCount)
@@ -96,7 +98,7 @@ namespace PunchedCards.Helpers
             var weightMatrix = new int[vertexCount, vertexCount, 4];
             foreach (var bitVector in bitVectors)
             {
-                for (uint bitIndex = 0; bitIndex < vertexCount; bitIndex++)
+                for (uint bitIndex = 0; bitIndex < bitActivityBoolArray.Length; bitIndex++)
                 {
                     bitActivityBoolArray[bitIndex] = bitVector.IsActive(bitIndex);
                 }
@@ -212,17 +214,17 @@ namespace PunchedCards.Helpers
                 }
             };
 
-        private static void Softmax(double[] values)
+        private static void SoftMax(IList<double> values)
         {
             double divisor = 0;
-            for (int i = 0; i < values.Length; i++)
+            for (var i = 0; i < values.Count; i++)
             {
                 var exp = Math.Exp(values[i]);
-                divisor += exp;
                 values[i] = exp;
+                divisor += exp;
             }
 
-            for (int i = 0; i < values.Length; i++)
+            for (var i = 0; i < values.Count; i++)
             {
                 values[i] /= divisor;
             }
