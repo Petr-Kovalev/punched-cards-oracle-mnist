@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using PunchedCards.BitVectors;
+﻿using PunchedCards.BitVectors;
 
 namespace PunchedCards.Helpers
 {
@@ -18,22 +15,60 @@ namespace PunchedCards.Helpers
         private readonly IReadOnlyDictionary<IBitVector, uint> _maxSpanningTreesWeightSums;
         private readonly IList<IBitVector> _labels;
 
+        public Expert()
+        {
+        }
+
         private Expert(IEnumerable<KeyValuePair<IBitVector, IReadOnlyCollection<IBitVector>>> trainingData)
         {
-            _maxSpanningTreesEdges = trainingData.ToDictionary(
-                trainingItem => trainingItem.Key,
-                trainingItem => (IEnumerable<IDictionary<ValueTuple<uint, uint, byte>, int>>)GetMaxSpanningTreesEdges(trainingItem.Value, MaxSpanningTreesPerLabel)
-                    .Select(edges => edges.ToDictionary(
-                                    t => ValueTuple.Create(t.Item1, t.Item2, t.Item3),
-                                    t => (int)t.Item4))
-                    .ToArray());
-            _maxSpanningTreesWeightSums = _maxSpanningTreesEdges.ToDictionary(edges => edges.Key, edges => (uint)edges.Value.SelectMany(edges => edges.Values).Sum());
-            _labels = _maxSpanningTreesEdges.Keys.ToArray();
+            MaxSpanningTreesEdges = trainingData.Select(trainingItem => KeyValuePair.Create<IBitVector, IEnumerable<IEnumerable<KeyValuePair<ValueTuple<uint, uint, byte>, int>>>>(
+                trainingItem.Key,
+                GetMaxSpanningTreesEdges(trainingItem.Value, MaxSpanningTreesPerLabel)
+                .Select(edges => edges.ToDictionary(
+                    edge => ValueTuple.Create(edge.Item1, edge.Item2, edge.Item3),
+                    edge => (int)edge.Item4).ToList())));
+            MaxSpanningTreesWeightSums = _maxSpanningTreesEdges.ToDictionary(
+                edges => edges.Key,
+                edges => (uint)edges.Value.SelectMany(d => d.Values).Sum());
         }
 
         internal static IExpert Create(IEnumerable<KeyValuePair<IBitVector, IReadOnlyCollection<IBitVector>>> trainingData)
         {
             return new Expert(trainingData);
+        }
+
+        public IEnumerable<KeyValuePair<IBitVector, IEnumerable<IEnumerable<KeyValuePair<ValueTuple<uint, uint, byte>, int>>>>> MaxSpanningTreesEdges
+        {
+            get
+            {
+                var keyValuePairs = (IEnumerable<KeyValuePair<IBitVector, IEnumerable<IDictionary<ValueTuple<uint, uint, byte>, int>>>>)_maxSpanningTreesEdges;
+                return keyValuePairs.Select(p => KeyValuePair.Create(p.Key, p.Value.Cast<IEnumerable<KeyValuePair<ValueTuple<uint, uint, byte>, int>>>()));
+            }
+
+            init
+            {
+                _maxSpanningTreesEdges =
+                    value as IReadOnlyDictionary<IBitVector, IEnumerable<IDictionary<ValueTuple<uint, uint, byte>, int>>> ??
+                    value.ToDictionary(p => p.Key,
+                                       p => (IEnumerable<IDictionary<ValueTuple<uint, uint, byte>, int>>)
+                                            p.Value.Select(edges => edges.ToDictionary(
+                                                 edge => edge.Key,
+                                                 edge => edge.Value))
+                                            .ToList());
+                _labels = _maxSpanningTreesEdges.Keys.ToArray();
+            }
+        }
+
+        public IEnumerable<KeyValuePair<IBitVector, uint>> MaxSpanningTreesWeightSums
+        {
+            get => _maxSpanningTreesWeightSums;
+
+            init
+            {
+                _maxSpanningTreesWeightSums =
+                    value as IReadOnlyDictionary<IBitVector, uint> ??
+                    value.ToDictionary(p => p.Key, p => p.Value);
+            }
         }
 
         public IReadOnlyDictionary<IBitVector, double> CalculateMatchingScores(IBitVector bitVector)
@@ -47,7 +82,7 @@ namespace PunchedCards.Helpers
             var matchingScores = CalculateMatchingScores(bitActivityBoolArray);
             var rightLabelMatchingScore = matchingScores[label];
 
-            bool anyWrongLabel = false;
+            var anyWrongLabel = false;
 
             foreach (var wrongLabel in _labels.Where(l => matchingScores[l] > rightLabelMatchingScore))
             {
@@ -98,7 +133,7 @@ namespace PunchedCards.Helpers
         {
             var weightMatrix = CalculateWeightMatrix(bitVectors);
 
-            int maxSpanningTreesCounter = 0;
+            var maxSpanningTreesCounter = 0;
             while (true)
             {
                 var maxSpanningTreeEdges = GetMaxSpanningTreeEdges(weightMatrix);
@@ -129,7 +164,7 @@ namespace PunchedCards.Helpers
 
                 for (uint firstVertexIndex = 0; firstVertexIndex < vertexCount - 1; firstVertexIndex++)
                 {
-                    for (uint secondVertexIndex = firstVertexIndex + 1; secondVertexIndex < vertexCount; secondVertexIndex++)
+                    for (var secondVertexIndex = firstVertexIndex + 1; secondVertexIndex < vertexCount; secondVertexIndex++)
                     {
                         weightMatrix[firstVertexIndex, secondVertexIndex, GetEdgeIndexByVertexValues(bitActivityBoolArray[firstVertexIndex], bitActivityBoolArray[secondVertexIndex])]++;
                     }
@@ -169,7 +204,7 @@ namespace PunchedCards.Helpers
         {
             var maxValidEdgeWeight = uint.MinValue;
             ValueTuple<uint, uint, byte> maxValidEdgeCoords = default;
-            bool nextMaxValidEdgeFound = false;
+            var nextMaxValidEdgeFound = false;
 
             foreach (var validEdge in validEdges)
             {
@@ -213,7 +248,7 @@ namespace PunchedCards.Helpers
         {
             for (uint firstVertexIndex = 0; firstVertexIndex < vertexCount - 1; firstVertexIndex++)
             {
-                for (uint secondVertexIndex = firstVertexIndex + 1; secondVertexIndex < vertexCount; secondVertexIndex++)
+                for (var secondVertexIndex = firstVertexIndex + 1; secondVertexIndex < vertexCount; secondVertexIndex++)
                 {
                     yield return ValueTuple.Create(firstVertexIndex, secondVertexIndex, FalseFalseEdgeIndex);
                     yield return ValueTuple.Create(firstVertexIndex, secondVertexIndex, TrueFalseEdgeIndex);

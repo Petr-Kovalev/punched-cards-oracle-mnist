@@ -1,4 +1,4 @@
-﻿namespace PunchedCards.Helpers.QMNIST
+﻿namespace PunchedCards.Helpers.OracleMNIST
 {
     internal sealed class Image
     {
