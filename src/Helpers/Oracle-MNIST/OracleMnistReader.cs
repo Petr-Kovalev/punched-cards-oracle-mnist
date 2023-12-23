@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-
-namespace PunchedCards.Helpers.QMNIST
+﻿namespace PunchedCards.Helpers.OracleMNIST
 {
     // https://github.com/wm-bupt/oracle-mnist
     internal static class OracleMnistReader
